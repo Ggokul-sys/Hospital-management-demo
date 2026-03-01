@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hospital Queue Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body class="bg-slate-100 font-sans">
+
+<!-- ================= LOGIN SCREEN ================= -->
+<div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-green-100">
+
+  <div class="bg-white shadow-2xl rounded-2xl p-8 w-96">
+    <h2 class="text-2xl font-bold text-center text-blue-600 mb-6">
+      🏥 Hospital Queue System
+    </h2>
+
+    <select id="roleSelect" class="w-full p-3 border rounded-lg mb-4">
+      <option value="patient">Patient</option>
+      <option value="doctor">Doctor</option>
+      <option value="admin">Admin</option>
+    </select>
+
+    <input type="email" placeholder="Email"
+      class="w-full p-3 border rounded-lg mb-3">
+
+    <input type="password" placeholder="Password"
+      class="w-full p-3 border rounded-lg mb-4">
+
+    <button onclick="login()"
+      class="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg transition">
+      Login
+    </button>
+  </div>
+</div>
+
+<!-- ================= DASHBOARD ================= -->
+<div id="dashboard" class="hidden min-h-screen flex">
+
+  <!-- Sidebar -->
+  <div class="w-64 bg-white shadow-lg p-5 hidden md:block">
+    <h2 class="text-xl font-bold text-blue-600 mb-6">🏥 HMS</h2>
+    <ul class="space-y-4">
+      <li class="cursor-pointer hover:text-blue-600">Dashboard</li>
+      <li class="cursor-pointer hover:text-blue-600">Queue</li>
+      <li class="cursor-pointer hover:text-blue-600">Analytics</li>
+      <li class="cursor-pointer hover:text-red-500" onclick="logout()">Logout</li>
+    </ul>
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 p-6">
+
+    <h1 id="dashboardTitle" class="text-2xl font-bold mb-6"></h1>
+
+    <!-- Cards Section -->
+    <div class="grid md:grid-cols-3 gap-6 mb-8">
+
+      <div class="bg-white p-6 rounded-2xl shadow-md text-center">
+        <h3 class="text-gray-500">Current Token</h3>
+        <p id="currentToken" class="text-4xl font-bold text-blue-600">0</p>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-md text-center">
+        <h3 class="text-gray-500">Queue Position</h3>
+        <p id="queuePosition" class="text-2xl font-bold text-green-600">-</p>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-md text-center">
+        <h3 class="text-gray-500">Estimated Waiting</h3>
+        <p id="waitingTime" class="text-2xl font-bold text-yellow-500">0 min</p>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div id="patientActions" class="mb-6 hidden">
+      <button onclick="joinQueue()"
+        class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl shadow">
+        + Join Queue
+      </button>
+    </div>
+
+    <div id="doctorActions" class="mb-6 hidden space-x-3">
+      <button onclick="callNext()"
+        class="bg-blue-600 text-white px-6 py-3 rounded-xl shadow">
+        Call Next
+      </button>
+
+      <button onclick="toggleAvailability()"
+        class="bg-green-500 text-white px-6 py-3 rounded-xl shadow">
+        Toggle Availability
+      </button>
+    </div>
+
+    <!-- Chart -->
+    <div id="adminSection" class="hidden bg-white p-6 rounded-2xl shadow">
+      <canvas id="queueChart"></canvas>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= QUEUE DISPLAY PANEL ================= -->
+<div id="displayPanel"
+  class="hidden fixed bottom-0 left-0 right-0 bg-blue-700 text-white p-4 text-center">
+
+  <h2 class="text-xl font-bold">Live Token Display</h2>
+  <p class="text-3xl font-bold mt-2">Now Serving: <span id="liveToken">0</span></p>
+  <p class="mt-2">Next: <span id="nextTokens"></span></p>
+</div>
+
+<script>
+let role = "";
+let queue = [];
+let currentServing = 0;
+let avgServiceTime = 5; // minutes
+let doctorAvailable = true;
+
+// ================= LOGIN =================
+function login() {
+  role = document.getElementById("roleSelect").value;
+  document.getElementById("loginScreen").classList.add("hidden");
+  document.getElementById("dashboard").classList.remove("hidden");
+  document.getElementById("displayPanel").classList.remove("hidden");
+
+  document.getElementById("dashboardTitle").innerText =
+    role.charAt(0).toUpperCase() + role.slice(1) + " Dashboard";
+
+  if (role === "patient") {
+    document.getElementById("patientActions").classList.remove("hidden");
+  }
+
+  if (role === "doctor") {
+    document.getElementById("doctorActions").classList.remove("hidden");
+  }
+
+  if (role === "admin") {
+    document.getElementById("adminSection").classList.remove("hidden");
+    initChart();
+  }
+
+  updateUI();
+}
+
+// ================= LOGOUT =================
+function logout() {
+  location.reload();
+}
+
+// ================= JOIN QUEUE =================
+function joinQueue() {
+  const token = queue.length + currentServing + 1;
+  queue.push(token);
+  alert("Your Token Number: " + token);
+  updateUI();
+}
+
+// ================= CALL NEXT =================
+function callNext() {
+  if (!doctorAvailable) {
+    alert("Doctor is Offline");
+    return;
+  }
+
+  if (queue.length > 0) {
+    currentServing = queue.shift();
+  }
+
+  updateUI();
+}
+
+// ================= TOGGLE DOCTOR =================
+function toggleAvailability() {
+  doctorAvailable = !doctorAvailable;
+  alert("Doctor is now " + (doctorAvailable ? "Online" : "Offline"));
+}
+
+// ================= UPDATE UI =================
+function updateUI() {
+  document.getElementById("currentToken").innerText = currentServing;
+  document.getElementById("liveToken").innerText = currentServing;
+
+  if (role === "patient" && queue.length > 0) {
+    document.getElementById("queuePosition").innerText =
+      "You are " + queue.length + " in queue";
+  }
+
+  let waiting = queue.length * avgServiceTime;
+  document.getElementById("waitingTime").innerText = waiting + " min";
+
+  document.getElementById("nextTokens").innerText =
+    queue.slice(0, 3).join(" , ");
+}
+
+// ================= AUTO REFRESH =================
+setInterval(updateUI, 5000);
+
+// ================= ADMIN CHART =================
+function initChart() {
+  new Chart(document.getElementById('queueChart'), {
+    type: 'line',
+    data: {
+      labels: ['1','2','3','4','5','6'],
+      datasets: [{
+        label: 'Queue Length Trend',
+        data: [2,4,3,5,6,4],
+        borderColor: '#2563EB',
+        fill: false
+      }]
+    }
+  });
+}
+</script>
+
+</body>
+</html>
